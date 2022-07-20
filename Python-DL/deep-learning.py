@@ -1,6 +1,9 @@
+from timeit import default_timer as timer
+start = timer()
+
+from datetime import datetime
 import pandas as pd
 import numpy as np
-import seaborn as sns
 import matplotlib.pyplot as plt
 from sqlalchemy import create_engine
 
@@ -12,30 +15,14 @@ from sklearn import metrics
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
-#Data = pd.read_csv('kc_house_data.csv')
 engine = create_engine('postgresql://schupp:Lachnummer-1@schupptest.postgres.database.azure.com:5432/test')
 df = pd.read_sql("housing_prices", engine)
-df.head(5).T
 
 df.drop(["index"], inplace=True, axis=1)
 
-df.info()
-df.describe().transpose()
-
-#let's break date to years, months
 df['date'] = pd.to_datetime(df['date'])
 df['month'] = df['date'].apply(lambda date:date.month)
 df['year'] = df['date'].apply(lambda date:date.year)
-
-#data visualization house price vs months and years
-fig = plt.figure(figsize=(16,5))
-fig.add_subplot(1,2,1)
-df.groupby('month').mean()['price'].plot()
-fig.add_subplot(1,2,2)
-df.groupby('year').mean()['price'].plot()
-
-# check if there are any Null values
-#df.isnull().sum()
 
 # drop unnecessary columns
 df = df.drop(['date', 'id', 'zipcode'],axis=1)
@@ -64,8 +51,8 @@ model.add(Dense(1))
 model.compile(optimizer='Adam',loss='mse')
 
 model.fit(x=X_train,y=y_train,
-          validation_data=(X_test,y_test),
-          batch_size=128, epochs=400)
+            validation_data=(X_test,y_test),
+            batch_size=128, epochs=100)
 model.summary()
 
 loss_df = pd.DataFrame(model.history.history)
@@ -73,30 +60,21 @@ loss_df.plot(figsize=(12,8))
 
 y_pred = model.predict(X_test)
 
-print('MAE:', metrics.mean_absolute_error(y_test, y_pred))  
-print('MSE:', metrics.mean_squared_error(y_test, y_pred))  
-print('RMSE:', np.sqrt(metrics.mean_squared_error(y_test, y_pred)))
-print('VarScore:',metrics.explained_variance_score(y_test,y_pred))
-
-# Visualizing Our predictions
-fig = plt.figure(figsize=(10,5))
-plt.scatter(y_test,y_pred)
-
-#Perfect predictions
-plt.plot(y_test,y_test,'r')
-
-"""
-#visualizing residuals
-fig = plt.figure(figsize=(10,5))
-residuals = (y_test- y_pred)
-sns.displot(residuals)
-"""
-
 #build dataset for reupload
 df_end = pd.DataFrame(X_test_copy, columns = df.drop("price", axis=1).columns)
 df_end["actual_price"] = y_test_copy
 df_end["predicted_price"] = y_pred
 
+#upload log entry
+end = timer()
+date = datetime.now()
+time_taken = end - start
+
+#dd/mm/YY H:M:S
+dt_string = date.strftime("%d/%m/%Y %H:%M:%S")
+log = {'Name':['DL - Azure Function'],'Timestamp':[dt_string], 'Zeit gebraucht':[time_taken]}
+df_log = pd.DataFrame(log)
+
+df_log.to_sql('log', con=engine, if_exists='append')
 #upload test-data with predictions
-engine = create_engine('postgresql://schupp:Lachnummer-1@schupptest.postgres.database.azure.com:5432/test')
 df_end.to_sql('housing_prices_test', con=engine, if_exists='replace')
