@@ -4,7 +4,6 @@ start = timer()
 from datetime import datetime
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 from sqlalchemy import create_engine
 
 from tensorflow.keras.models import Sequential
@@ -54,9 +53,6 @@ model.fit(x=X_train,y=y_train,
             validation_data=(X_test,y_test),
             batch_size=128, epochs=100)
 model.summary()
-
-loss_df = pd.DataFrame(model.history.history)
-loss_df.plot(figsize=(12,8))
 
 y_pred = model.predict(X_test)
 
